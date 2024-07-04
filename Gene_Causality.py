@@ -36,6 +36,7 @@ class GeneCasuality_Search:
         self.gene_column = None
 
     def __str__(self):
+        
         if self.tf_data is not None and self.cam_data is not None:  # Changed condition to check if data is not None
             working_metadata = self.working_metadata.copy().reset_index(drop=True)
             # Concatenate with current gene metadata
@@ -54,32 +55,43 @@ class GeneCasuality_Search:
         self.working_genes = self.__genenames.copy() if self.__genenames is not None else None
         self.working_data = self.__alldata.copy() if self.__alldata is not None else None
         self.working_metadata = self.__allmetadata.copy() if self.__allmetadata is not None else None
+    
 
-    def read_genomic_data(self, rows, *paths):
+    def read_genomic_data(self,paths, rows='',sample_cutoff = 200):
         """
         Must be of type .npz matrices. 
 
         Added a row parameter which specifies if genes or samples are on the rows
         """
+        if type(paths) is not list:
+            paths = [paths]
         expression = None
         for path in paths:
             expression = load_npz(path) if expression is None else vstack([expression, load_npz(path)])
         
         if rows == 'genes':
-            self.__alldata = expression.T
+            pre_cut = expression.T.tocsr()
         else:
-            self.__alldata = expression
+            pre_cut = expression.tocsr()
+
+        col_sums = pre_cut.sum(axis=1)
+        
         self.working_data = self.__alldata.copy()
 
-    def read_genes(self, feature_path,gene_column='Genes',delimiter=','):
+    def read_genes(self, feature_path,gene_column='Genes',column_names = []):
         """
         Needs to be either a csv or tsv. OR pkl file
         """
-        if feature_path.split('.')[-1] == 'pkl':
+        file_type = feature_path.split('.')[-1]
+        if file_type == 'pkl':
             with open(feature_path,'rb') as f:
                 all_info = pd.DataFrame({gene_column:pickle.load(f)})
+                if len(all_info.columns) == len(column_names):
+                    all_info.columns = column_names
+        elif file_type =='tsv':
+            all_info = pd.read_csv(feature_path, delimiter='\t',names=column_names)
         else:
-            all_info = pd.read_csv(feature_path, delimiter=delimiter)
+            all_info = pd.read_csv(feature_path,names=column_names)
         self.gene_column = gene_column
         self.__genenames = all_info
         self.working_genes = all_info.copy()
@@ -93,14 +105,11 @@ class GeneCasuality_Search:
         self.working_data = self.working_data[:, master_indices]
         self.working_genes = self.__genenames.iloc[master_indices, :]
 
-    def read_metadata(self, early_metadata_path, main_metadata_path, feature_path):
-        metadata_main = pd.read_csv(main_metadata_path, sep='\t')
-        metadata_early = pd.read_csv(early_metadata_path, sep='\t')
-        metadata_main.set_index('barcode', inplace=True)
-        metadata_early.set_index('barcode', inplace=True)
-        metadata_combined = pd.concat([metadata_main, metadata_early]).reset_index()
-        self.__allmetadata = metadata_combined
-        self.working_metadata = metadata_combined.copy()
+    def read_metadata(self, metadata_path):
+        metadata = pd.read_csv(metadata_path)
+        metadata.set_index('barcode', inplace=True)
+        self.__allmetadata = metadata
+        self.working_metadata = metadata.copy()
 
     def read_master_genes(self, tf_path, cam_path):
 
@@ -154,8 +163,14 @@ class GeneCasuality_Search:
         grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid, scoring='neg_mean_absolute_error', cv=3, verbose=2)
         grid_search.fit(X_train, y_train)
         return pd.DataFrame(grid_search.cv_results_)
-    def save_model(path):
-        pass
+    def save_model(self,path = "xgb_reg.pkl"):
+       """
+       Adds an option to save model
+       """
+
+        
+        pickle.dump(self.trained_model, open(path, "wb"))
+
     def subset_data(self, **kwargs):
         searching = self.__allmetadata.copy()
         for key, val in kwargs.items():
@@ -166,3 +181,10 @@ class GeneCasuality_Search:
         rows = list(searching.index)
         self.working_metadata = searching
         self.working_data = self.working_data[rows, :].copy()
+    def gene_index_mapping(self,gene_list):
+        """
+        Allows for a mapping which specifies in which index has each gene
+        """
+        subset = self.working_genes[self.working_genes[self.gene_column].isin(gene_list)]
+        mapping = {gene:index for gene,index in zip(subset.index,subset.Genes)}
+        return mapping

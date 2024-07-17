@@ -14,10 +14,8 @@ from sklearn.model_selection import GridSearchCV
 from scipy.sparse import csr_matrix,vstack,save_npz,load_npz
 from xgboost import XGBRegressor 
 import pickle
-"""
- Need to add an orientation option  
-"""
-class GeneCasuality_Search:
+
+class scrna:
     def __init__(self):
         self.tf_masterlist = []
         self.cam_masterlist = []
@@ -34,7 +32,6 @@ class GeneCasuality_Search:
         self.test = None
         self.gene_performance = None
         self.gene_column = None
-
     def __str__(self):
         
         if self.tf_data is not None and self.cam_data is not None:  # Changed condition to check if data is not None
@@ -44,7 +41,6 @@ class GeneCasuality_Search:
             return working_df.head().to_string()  # Convert DataFrame to string for printing
         else:
             return "TF or CAM data is not available."
-
     def reset_analysis(self):
         # Clearing properties for reset
         self.working_metadata = None
@@ -55,7 +51,6 @@ class GeneCasuality_Search:
         self.working_genes = self.__genenames.copy() if self.__genenames is not None else None
         self.working_data = self.__alldata.copy() if self.__alldata is not None else None
         self.working_metadata = self.__allmetadata.copy() if self.__allmetadata is not None else None
-    
 
     def read_genomic_data(self,paths, rows='',sample_cutoff = 200):
         """
@@ -76,6 +71,8 @@ class GeneCasuality_Search:
 
         col_sums = pre_cut.sum(axis=1)
         
+
+        self.__alldata = pre_cut 
         self.working_data = self.__alldata.copy()
 
     def read_genes(self, feature_path,gene_column='Genes',column_names = []):
@@ -83,7 +80,7 @@ class GeneCasuality_Search:
         Needs to be either a csv or tsv. OR pkl file
         """
         file_type = feature_path.split('.')[-1]
-        if file_type == 'pkl':
+        if file_type == 'pkl': 
             with open(feature_path,'rb') as f:
                 all_info = pd.DataFrame({gene_column:pickle.load(f)})
                 if len(all_info.columns) == len(column_names):
@@ -95,7 +92,6 @@ class GeneCasuality_Search:
         self.gene_column = gene_column
         self.__genenames = all_info
         self.working_genes = all_info.copy()
-
     def subset_tf_cam(self):
         tf_indices = list(self.__genenames[self.__genenames[self.gene_column].str.lower().isin(self.tf_masterlist)].index)
         cam_indices = list(self.__genenames[self.__genenames[self.gene_column].str.lower().isin(self.cam_masterlist)].index)
@@ -104,13 +100,11 @@ class GeneCasuality_Search:
         self.cam_data = self.working_data[:, cam_indices]
         self.working_data = self.working_data[:, master_indices]
         self.working_genes = self.__genenames.iloc[master_indices, :]
-
     def read_metadata(self, metadata_path):
         metadata = pd.read_csv(metadata_path)
-        metadata.set_index('barcode', inplace=True)
+        
         self.__allmetadata = metadata
         self.working_metadata = metadata.copy()
-
     def read_master_genes(self, tf_path, cam_path):
 
         """
@@ -126,52 +120,8 @@ class GeneCasuality_Search:
             for x in common_genes:
                 print(x)
             raise ValueError('Duplicate gene references found.')
-
-    def cross_validate(self, test_size, num_folds, params, num_boost_rounds, early_stopping_rounds):
-        X_train, X_test, y_train, y_test = train_test_split(self.tf_data, self.cam_data, test_size=test_size)
-        dtrain = xgb.DMatrix(X_train, label=y_train.toarray())
-        cv_results = xgb.cv(dtrain=dtrain, params=params, nfold=num_folds,
-                            num_boost_round=num_boost_rounds,
-                            early_stopping_rounds=early_stopping_rounds,
-                            metrics='rmse', as_pandas=True)
-        return cv_results
-
-    def train_model(self, test_size, params):
-        X_train, X_test, y_train, y_test = train_test_split(self.tf_data, self.cam_data, test_size=test_size)
-        dtrain = xgb.DMatrix(X_train, label=y_train.toarray())
-        dtest = xgb.DMatrix(X_test, label=y_test.toarray())
-        self.trained_model = xgb.train(params, dtrain,num_boost_round = params.get('n_estimators',100))
-        self.train = dtrain
-        self.test = (dtest, y_test)
-
-    def evaluate_performance(self):
-        preds = self.trained_model.predict(self.test[0])
-        overall_performance = np.mean(np.abs(self.test[1].toarray() - np.round(preds)))
-        gene_by_gene_performance = np.mean(np.abs(self.test[1].toarray() - np.round(preds)), axis=0)
-        print(overall_performance ," Mean Average Error")
-        return pd.DataFrame(gene_by_gene_performance, columns=['Performance'])
-
-    def reduce_feature(self):
-        rf = RandomForestRegressor(n_jobs=-1, max_depth=5)
-        feat_selector = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=1)
-        X_filtered = feat_selector.fit_transform(self.tf_data.toarray(), self.cam_data.toarray())
-        return X_filtered
-    
-    def grid_search(self,param_grid):
-        X_train, X_test, y_train, y_test = train_test_split(self.tf_data, self.cam_data, test_size=5e-2)
-        xgb_model = XGBRegressor(tree_method='gpu_hist', objective='reg:squarederror', verbosity=2)
-        grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid, scoring='neg_mean_absolute_error', cv=3, verbose=2)
-        grid_search.fit(X_train, y_train)
-        return pd.DataFrame(grid_search.cv_results_)
-    def save_model(self,path = "xgb_reg.pkl"):
-       """
-       Adds an option to save model
-       """
-
-        
-        pickle.dump(self.trained_model, open(path, "wb"))
-
     def subset_data(self, **kwargs):
+        print(kwargs)
         searching = self.__allmetadata.copy()
         for key, val in kwargs.items():
             if isinstance(val, list):
@@ -179,12 +129,8 @@ class GeneCasuality_Search:
             else:
                 searching = searching[searching[key] == val]
         rows = list(searching.index)
+        print(rows)
         self.working_metadata = searching
         self.working_data = self.working_data[rows, :].copy()
-    def gene_index_mapping(self,gene_list):
-        """
-        Allows for a mapping which specifies in which index has each gene
-        """
-        subset = self.working_genes[self.working_genes[self.gene_column].isin(gene_list)]
-        mapping = {gene:index for gene,index in zip(subset.index,subset.Genes)}
-        return mapping
+    def get_current_data(self):
+        return pd.DataFrame(self.working_data.toarray(), columns=list(self.working_genes[self.gene_column]))

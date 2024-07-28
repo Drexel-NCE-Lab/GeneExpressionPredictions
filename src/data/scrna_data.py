@@ -133,4 +133,5 @@ class scrna:
         self.working_metadata = searching
         self.working_data = self.working_data[rows, :].copy()
     def get_current_data(self):
-        return pd.DataFrame(self.working_data.toarray(), columns=list(self.working_genes[self.gene_column]))
+
+        return pd.DataFrame(self.working_data.toarray(), columns=[x.lower().strip() for x in list(self.working_genes[self.gene_column])])

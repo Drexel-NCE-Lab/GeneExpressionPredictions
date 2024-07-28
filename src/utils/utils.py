@@ -23,8 +23,15 @@ def mtx_to_npz(mtx_paths:list,npz_path:str):
 
 def get_subsetted_genes(data_df:pd.DataFrame,celltype_to_genenames: dict)-> dict:
     subsetted = {}
+    
     if celltype_to_genenames:
+         
         for celltype,genenames in celltype_to_genenames.items():
+            genenames = [x.lower().strip() for x in genenames]
+            if list(set(genenames) - set(data_df.columns)):
+                print(f'Didn\'t find {','.join(list(set(genenames) - set(data_df.columns)))} from {celltype}')
+            genenames = list(set(genenames) & set(data_df.columns))
+
             subsetted[celltype] = data_df.loc[:,genenames]
     return subsetted
 

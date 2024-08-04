@@ -35,10 +35,12 @@ def get_subsetted_genes(data_df:pd.DataFrame,celltype_to_genenames: dict)-> dict
             subsetted[celltype] = data_df.loc[:,genenames]
     return subsetted
 
-def save_model(model,path = "xgb_reg.pkl"):
+def save_model(model,params,mae):
     """
     Adds an option to save model
     """
-    
-    pkl.dump(model, open(path, "wb"))
-    return
+    params_str = '_'.join([f"{key}={value}" for key, value in params.items()])
+    filename = f"model_xgb-mae={mae:.4f}_{params_str}.model"
+    model.save_model(filename)
+    print(f"Model saved at {filename}")
+    return 

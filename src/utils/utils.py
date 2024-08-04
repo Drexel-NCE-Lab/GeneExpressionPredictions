@@ -29,7 +29,7 @@ def get_subsetted_genes(data_df:pd.DataFrame,celltype_to_genenames: dict)-> dict
         for celltype,genenames in celltype_to_genenames.items():
             genenames = [x.lower().strip() for x in genenames]
             if list(set(genenames) - set(data_df.columns)):
-                print(f'Didn\'t find {','.join(list(set(genenames) - set(data_df.columns)))} from {celltype}')
+                print(f'Did not find {",".join(list(set(genenames) - set(data_df.columns)))} from {celltype}')
             genenames = list(set(genenames) & set(data_df.columns))
 
             subsetted[celltype] = data_df.loc[:,genenames]

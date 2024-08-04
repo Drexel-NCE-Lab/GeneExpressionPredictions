@@ -2,6 +2,7 @@ import scipy.io
 import scipy.sparse
 import pandas as pd
 import pickle as pkl
+import os
 def mtx_to_npz(mtx_paths:list,npz_path:str):
     def load_mtx_file(mtx_file):
         matrix = scipy.io.mmread(mtx_file)
@@ -35,12 +36,12 @@ def get_subsetted_genes(data_df:pd.DataFrame,celltype_to_genenames: dict)-> dict
             subsetted[celltype] = data_df.loc[:,genenames]
     return subsetted
 
-def save_model(model,params,mae):
+def save_model(model,params,mae,mdl_folder='../models'):
     """
     Adds an option to save model
     """
     params_str = '_'.join([f"{key}={value}" for key, value in params.items()])
     filename = f"model_xgb-mae={mae:.4f}_{params_str}.model"
-    model.save_model(filename)
+    model.save_model(os.path.join(mdl_folder,filename))
     print(f"Model saved at {filename}")
     return 
